@@ -41,8 +41,16 @@
 #include "test_wave.h"
 #include "arm_math.h"
 #include "arm_const_structs.h"
+#include "stdio.h"
 
 /* USER CODE BEGIN Includes */
+#ifdef __GNUC___
+	
+		#define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
+#else 
+		#define PUTCHAR_PROTOTYPE int fputc(int ch,FILE *f)
+#endif
+		
 
 /* USER CODE END Includes */
 
@@ -57,6 +65,13 @@ UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
+				PUTCHAR_PROTOTYPE
+{
+	HAL_UART_Transmit(&huart2,(uint8_t *)&ch, 1,0xFFFF);
+	
+	return 0;
+}
+
 #define __FPU_PRESENT  1U
 #define fft_max_double 4096 //max = 16,226
 #define fft_max_float 2*fft_max_double //max = 32,452
@@ -65,21 +80,29 @@ UART_HandleTypeDef huart2;
 #define FFT_SIZE SAMPLES/2
 #define CFFT_LENGTH	arm_cfft_sR_f32_len1024
 extern float32_t wave_Input[SAMPLES];
+extern float32_t wave_3_440Hz_44100[SAMPLES];
+float32_t wave_buffer[SAMPLES];
 float32_t fft_Output[FFT_SIZE];
 
+
+float32_t random;
 
 uint32_t fft_Size = FFT_SIZE;
 uint32_t ifft_Flag = 0;
 uint32_t doBitReverse = 1;
 
-uint32_t refIndex = 213, testIndex = 0;
+uint32_t refIndex = 213, testIndex = 213;
 
 
 float32_t fft_pcm[FFT_SIZE];
 float32_t fft_pdm[FFT_SIZE];
 
+float32_t max_freq;
+float32_t MaxValue;
 
+uint64_t counter=0;
 
+static arm_rfft_fast_instance_f32 s;
 
 /* USER CODE END PV */
 
@@ -94,7 +117,7 @@ static void MX_USB_OTG_FS_USB_Init(void);
 
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
-
+uint32_t fft_calc(uint32_t sample_rate);
 /* USER CODE END PFP */
 
 /* USER CODE BEGIN 0 */
@@ -106,8 +129,7 @@ int main(void)
 
   /* USER CODE BEGIN 1 */
 	arm_status status;
-	float32_t MaxValue;
-
+	
 	status = ARM_MATH_SUCCESS;
   /* USER CODE END 1 */
 
@@ -135,57 +157,139 @@ int main(void)
   MX_RNG_Init();
   MX_USB_OTG_FS_USB_Init();
 
-  /* USER CODE BEGIN 2 */
-	if(	BSP_AUDIO_IN_Init(44100,16,1)==AUDIO_OK){
-		HAL_GPIO_WritePin(GPIOD,LED3_PIN,GPIO_PIN_SET);
+//  /* USER CODE BEGIN 2 */
+//	if(	BSP_AUDIO_IN_Init(44100,16,1)==AUDIO_OK){
+//		HAL_GPIO_WritePin(GPIOD,LED3_PIN,GPIO_PIN_SET);
+//		
+//	}
+//	else{
+//		Error_Handler();
+//	}
+
+//		memcpy(&wave_buffer,&wave_Input,2048);
+//		arm_cfft_radix4_init_f32(&S,FFT_SIZE,0,1);
+//		arm_cfft_radix4_f32(&S, wave_buffer);
+//		arm_cmplx_mag_f32(wave_buffer,fft_Output,FFT_SIZE);
+//		arm_max_f32(fft_Output,FFT_SIZE,&MaxValue,&testIndex);
 		
-	}
-	else{
-		Error_Handler();
-	}
-	
+
+		//printf("\n\r");
+		//arm_cfft_f32(&CFFT_LENGTH,wave_buffer,ifft_Flag,doBitReverse);
+		
+
 	while (1)
   {
-		
-	if(BSP_AUDIO_IN_Record((uint16_t *)wave_Input,FFT_SIZE)==AUDIO_OK){
-		HAL_GPIO_WritePin(GPIOD,LED4_PIN,GPIO_PIN_SET);
-	}
-	else{
-		Error_Handler();
-	}
-	
-	if(BSP_AUDIO_IN_PDMToPCM((uint16_t *)fft_pdm,(uint16_t *)fft_pcm)==AUDIO_OK){
-		HAL_GPIO_WritePin(GPIOD,LED5_PIN,GPIO_PIN_SET);
-	}
-	else {
-		Error_Handler();
-	}
-	
-	arm_cfft_f32(&CFFT_LENGTH,wave_Input,ifft_Flag,doBitReverse);
-	
-	arm_cmplx_mag_f32(wave_Input,fft_Output,FFT_SIZE);
-		
-	arm_max_f32(fft_Output,FFT_SIZE,&MaxValue,&testIndex);	
-	
-	if(testIndex!=refIndex)
-		Error_Handler();
-	
-	//BSP_AUDIO_IN_Init();
-  /* USER CODE END 2 */
 
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
-  
-  /* USER CODE END WHILE */
-//	for(int i=0;i<FFT_SIZE;i++)
-//		wave_Input[i]=HAL_RNG_GetRandomNumber(&hrng);
-  /* USER CODE BEGIN 3 */
+//	if(BSP_AUDIO_IN_Record((uint16_t *)wave_Input,FFT_SIZE)==AUDIO_OK){
+//		//HAL_GPIO_WritePin(GPIOD,LED4_PIN,GPIO_PIN_SET);
+//		HAL_GPIO_TogglePin(GPIOD,LED4_PIN);
+//	}
+//	else{
+//		Error_Handler();
+//	}
+	
+//	if(BSP_AUDIO_IN_PDMToPCM((uint16_t *)fft_pdm,(uint16_t *)fft_pcm)==AUDIO_OK){
+//		//HAL_GPIO_WritePin(GPIOD,LED5_PIN,GPIO_PIN_SET);
+//		HAL_GPIO_TogglePin(GPIOD,LED5_PIN);
+//	}
+//	else {
+//		Error_Handler();
+//	}
 
-  }
+
+
+
+		counter++;
+		uint16_t counter_flag=0;
+					
+
+
+		
+	//ifft_Flag=0; doBitReverse=1;
+//		if(counter%2==0){
+//			memcpy(&wave_buffer,&wave_Input,SAMPLES);
+//			arm_cfft_radix4_init_f32(&S,FFT_SIZE,0,1);
+//			arm_cfft_radix4_f32(&S, wave_buffer);
+//			arm_cmplx_mag_f32(wave_buffer,fft_Output,FFT_SIZE);
+//			arm_max_f32(fft_Output,FFT_SIZE,&MaxValue,&testIndex);
+////			arm_cmplx_mag_f32(wave_buffer,fft_Output,fft_Size);
+////		  arm_max_f32(fft_Output,fft_Size,&MaxValue,&testIndex);
+//			max_freq=(48800/1024)*testIndex;			
+//			counter_flag=1;
+//		}
+//		else{
+//			memcpy(&wave_buffer,&wave_3_440Hz_44100,SAMPLES);
+//			arm_cfft_radix4_init_f32(&S,FFT_SIZE,0,1);
+//			arm_cfft_radix4_f32(&S, wave_buffer);
+//			arm_cmplx_mag_f32(wave_buffer,fft_Output,FFT_SIZE);
+//			arm_max_f32(fft_Output,FFT_SIZE,&MaxValue,&testIndex);
+////			arm_cmplx_mag_f32(wave_buffer,fft_Output,fft_Size);
+////		  arm_max_f32(fft_Output,fft_Size,&MaxValue,&testIndex);
+//			max_freq=(44100/1024)*testIndex;			
+//			counter_flag=0;
+
+//	}
+
+
+//	if(counter%2==0)
+//		{
+//			for(int j=0;j<FFT_SIZE;j++){
+
+//				if(j%2==0){
+//					random=(float32_t)HAL_RNG_GetRandomNumber(&hrng)/1000000000;
+//					wave_buffer[j]=random;
+//				}
+//					else
+//					wave_buffer[j]=0;
+//			
+//			}
+//		}
+//	else
+//		memcpy(&wave_Input,&wave_buffer,2048);
+	int check=0;
+	if(testIndex==213)
+		check=1;
+	else
+		check=0;
+//	printf("bitRevrs=%d bitRevrsFctr=%d fftLen=%d ifftFlag=%d oneBYfftLen=%f BitRevTable=%d Twiddle=%f twidCoeFModif=%d "
+//				,S.bitReverseFlag,S.bitRevFactor,S.fftLen,S.ifftFlag,S.onebyfftLen,(uint16_t )S.pBitRevTable,*S.pTwiddle,S.twidCoefModifier);
+	//printf("true=%d",check,ifft_Flag,doBitReverse,counter_flag);
+//	printf("max_freq=%d max_value=%f test_Index=%d ref_Index (@10kHz)=%d \n\r"
+//					,fft_calc(48800), MaxValue,testIndex,refIndex);
+//	testIndex=0;
+//	MaxValue=0;
+//	max_freq=0;
+	fft_calc(48800);
+	int i=0,k=0;
+//	for(int j=0;j<55;j++){
+//	for(;i<25+k;i++){
+//		printf("%f,",wave_Input[i]);
+//	}
+//	k=i;
+//	printf("\n\r");
+//}
+	
+	
+//	if(testIndex!=refIndex)
+//		Error_Handler();
+//	
+//	//BSP_AUDIO_IN_Init();
+//  /* USER CODE END 2 */
+
+//  /* Infinite loop */
+//  /* USER CODE BEGIN WHILE */
+//  
+//  /* USER CODE END WHILE */
+////	for(int i=0;i<FFT_SIZE;i++)
+////		wave_Input[i]=HAL_RNG_GetRandomNumber(&hrng);
+//  /* USER CODE BEGIN 3 */
+
+//  }
+	//HAL_NVIC_SystemReset();
   /* USER CODE END 3 */
 
 }
-
+}
 /** System Clock Configuration
 */
 void SystemClock_Config(void)
@@ -321,6 +425,10 @@ static void MX_USART2_UART_Init(void)
 
 }
 
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart){
+	HAL_GPIO_WritePin(GPIOD,LED4_PIN,GPIO_PIN_SET);
+	
+}
 /* USB_OTG_FS init function */
 static void MX_USB_OTG_FS_USB_Init(void)
 {
@@ -472,7 +580,25 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+uint32_t fft_calc(uint32_t sample_rate){
+	
+	
+		arm_cfft_radix4_instance_f32 S;
+		memcpy(&wave_buffer,&wave_Input,2048);
+			for(int i=0;i<15;i++){
+			printf("%f ",wave_buffer[i]);
+		}
+		arm_cfft_radix4_init_f32(&S,FFT_SIZE,0,1);
+		arm_cfft_radix4_f32(&S, wave_buffer);
+		arm_cmplx_mag_f32(wave_buffer,fft_Output,FFT_SIZE);
+		arm_max_f32(fft_Output,FFT_SIZE,&MaxValue,&testIndex);
 
+		printf("\n\r");
+		max_freq=(sample_rate/1024)*testIndex;
+	
+	return max_freq;
+	
+}
 /* USER CODE END 4 */
 
 /**
