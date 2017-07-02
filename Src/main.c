@@ -584,15 +584,15 @@ uint32_t fft_calc(uint32_t sample_rate){
 	
 	
 		arm_cfft_radix4_instance_f32 S;
-		memcpy(&wave_buffer,&wave_Input,2048);
-			for(int i=0;i<15;i++){
-			printf("%f ",wave_buffer[i]);
-		}
+		memcpy(wave_buffer,wave_Input,2048);
+
 		arm_cfft_radix4_init_f32(&S,FFT_SIZE,0,1);
 		arm_cfft_radix4_f32(&S, wave_buffer);
 		arm_cmplx_mag_f32(wave_buffer,fft_Output,FFT_SIZE);
 		arm_max_f32(fft_Output,FFT_SIZE,&MaxValue,&testIndex);
-
+				for(int i=0;i<15;i++){
+			printf("%f ",wave_buffer[i]);
+		}
 		printf("\n\r");
 		max_freq=(sample_rate/1024)*testIndex;
 	
